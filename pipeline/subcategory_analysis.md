@@ -75,19 +75,19 @@ that carry ambiguous or catch-all labels and would otherwise pollute the decisio
 
 ---
 
-## 2. The Script-14 Approach — What Changed and Why It Works
+## 2. The Script- Approach — What Changed and Why It Works
 
 ### Background
 
 The pipeline originally used a different modelling approach for all three stages:
 
-| Component | Old pipeline | New pipeline (script-14 inspired) |
-|---|---|---|
-| Classifier | LogisticRegression | LinearSVC |
-| Features | Single combined TF-IDF (50k) + FrequencySenderEncoder (top-200 sender buckets) | 3 separate TF-IDF vectorizers: ProfileFullName (5k) + Subject (15k) + Symptom (35k) |
-| Noise filter | None | Drops rows where Category or Subcategory matches `(?i)(cms|altro|other|z-other)` |
-| Confidence | Native LogReg probabilities | CalibratedClassifierCV (cv=3, sigmoid) wrapping LinearSVC |
-| Production model | Trained on 80% split | Retrained on 100% of clean data after held-out evaluation |
+| Component        | Old pipeline                                                                   | New pipeline (script-14 inspired)                                                   |       |       |           |
+| ------------------| --------------------------------------------------------------------------------| -------------------------------------------------------------------------------------| -------| -------| -----------|
+| Classifier       | LogisticRegression                                                             | LinearSVC                                                                           |       |       |           |
+| Features         | Single combined TF-IDF (50k) + FrequencySenderEncoder (top-200 sender buckets) | 3 separate TF-IDF vectorizers: ProfileFullName (5k) + Subject (15k) + Symptom (35k) |       |       |           |
+| Noise filter     | None                                                                           | Drops rows where Category or Subcategory matches `(?i)(cms                          | altro | other | z-other)` |
+| Confidence       | Native LogReg probabilities                                                    | CalibratedClassifierCV (cv=3, sigmoid) wrapping LinearSVC                           |       |       |           |
+| Production model | Trained on 80% split                                                           | Retrained on 100% of clean data after held-out evaluation                           |       |       |           |
 
 The name "script-14" refers to `14_train_ultimate_category_model.py`, a standalone experiment
 script that tested this combination and achieved the best category accuracy seen in any prior
