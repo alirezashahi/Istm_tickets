@@ -1,7 +1,7 @@
 # Subcategory Model — Performance Analysis
 
-**True-routed accuracy: 95.88% | Macro F1: 0.9463 | Abstain rate: 3.2%**
-**End-to-end accuracy: 86.01% | Macro F1: 0.7717 | Abstain rate: 4.1%**
+**True-routed accuracy: 95.05% | Macro F1: 0.9440**
+**End-to-end accuracy: 84.61% | Macro F1: 0.7416**
 
 ---
 
@@ -44,7 +44,7 @@ Incoming ticket
   │     → subcategory = category name, no model needed
   │
   ├─► No subcategory model trained? (18 skipped — see Section 5)
-  │     → subcategory = "unspecified (review)"  [ABSTAIN]
+  │     → subcategory = "unspecified (review)"
   │
   ▼
 ┌──────────────────────────────────────────────────────────────┐
@@ -56,16 +56,15 @@ Incoming ticket
 │             contains: model, calibrated, transformers,       │
 │                       classes, excluded_subcats              │
 │  Output: subcategory name  + confidence                      │
-│  Abstention: if max confidence < 0.40 → "unspecified (review)│
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Confidence and abstention
+### Confidence scores
 
 At each stage the pipeline uses a `CalibratedClassifierCV(LinearSVC, cv=3, method="sigmoid")`
-to convert the SVM decision scores into calibrated probabilities.
-At the subcategory stage, if the top class probability is below **0.40** the model abstains
-and returns `"unspecified (review)"` rather than guessing.
+to convert the SVM decision scores into calibrated probabilities. The confidence score is
+returned alongside every prediction so downstream systems can inspect uncertainty —
+but no threshold is applied; the model always returns its best prediction.
 
 ### Noise filter
 
@@ -172,16 +171,18 @@ Both are linear classifiers, but LinearSVC is better suited to high-dimensional 
 
 ### Change 4 — CalibratedClassifierCV for confidence scores
 
-The old LogisticRegression produced native probabilities, but these were not well-calibrated
-for the abstention threshold (0.40). In practice the model was often uncertain (probabilities
-clustered near 0.40–0.55), causing the abstain rate to reach 22% in subcategory evaluation.
+The old LogisticRegression produced native probabilities that were poorly calibrated —
+they clustered near the middle of the range, making it hard to distinguish confident
+from uncertain predictions.
 
 The new approach wraps LinearSVC in `CalibratedClassifierCV(cv=3, method="sigmoid")`:
-- The sigmoid (Platt scaling) is fit on 3-fold cross-validation, producing properly
-  calibrated probabilities that spread across the full [0, 1] range.
-- Result: the subcategory abstain rate dropped from **22.1% → 3.2%** without changing the
-  0.40 threshold. The model is now genuinely confident when it should be, rather than
-  artificially uncertain.
+- The sigmoid (Platt scaling) is fit on 3-fold cross-validation, producing well-spread
+  probabilities across the full [0, 1] range.
+- The calibrated confidence score is returned with every prediction so downstream systems
+  can surface uncertainty or apply their own thresholds if needed.
+- No confidence threshold is applied — the model always returns its best prediction, keeping
+  reported accuracy honest and avoiding the cherry-picking effect that an abstention threshold
+  introduces.
 
 ---
 
@@ -191,9 +192,8 @@ The new approach wraps LinearSVC in `CalibratedClassifierCV(cv=3, method="sigmoi
 |---|---:|---:|---:|
 | Service | 92.95% | **96.68%** | **+3.73 pp** |
 | Category | 85.09%¹ | **87.00%** | **+1.91 pp** |
-| Subcategory (true-routed) | 90.71% | **95.88%** | **+5.17 pp** |
-| Subcategory (end-to-end) | 82.05% | **86.01%** | **+3.96 pp** |
-| Subcategory abstain rate | 22.1% | **3.2%** | **−18.9 pp** |
+| Subcategory (true-routed) | 90.71% | **95.05%** | **+4.34 pp** |
+| Subcategory (end-to-end) | 82.05% | **84.61%** | **+2.56 pp** |
 
 ¹ *Final Production Model from `metrics_history.json` (deployed API baseline)*
 
@@ -522,50 +522,50 @@ In production: tickets routed to a skipped category always return `"unspecified 
 
 ### True-category-routed (best case — correct category assumed)
 
-| Category | Support | Macro F1 | Abstain rate |
-|---|---:|---:|---:|
-| 02-User Application | 240 | **1.0000** | 4.2% |
-| 67-RPA | 69 | **1.0000** | 0.0% |
-| 42-CPQ Wood | 649 | 0.9963 | 0.0% |
-| 71-HCL NOTES | 426 | 0.9937 | 1.2% |
-| 66-ERP-365FO | 270 | 0.9924 | 1.1% |
-| 35-CAD | 237 | 0.9917 | 0.0% |
-| 58-FCS | 718 | 0.9897 | 0.0% |
-| 64-Applicazioni HR | 127 | 0.9835 | 0.0% |
-| 70-CMS | 1,819 | 0.9823 | 0.3% |
-| 40-CRM Microsoft | 1,290 | 0.9677 | 0.2% |
-| 46-MyPortal | 1,208 | 0.9477 | 0.2% |
-| 30-ERP Microsoft AX 2012 | 4,806 | 0.9431 | 7.7% |
-| 01-Workplace | 1,037 | 0.9429 | 0.0% |
-| 48-BI Microsoft | 1,361 | 0.8729 | 8.7% |
-| 73-ERP (ACG AS/400) | 513 | 0.7662 | 3.5% |
-| 34-PLM | 239 | 0.6405 | 0.0% |
-| 72-ASM | 236 | 0.5782 | 0.0% |
-| 32-EBS (ERP) | 1,596 | **0.3795** | 0.0% |
-| **Overall** | **17,217** | **0.9463** | **3.2%** |
+| Category | Support | Macro F1 |
+|---|---:|---:|
+| 67-RPA | 69 | 1.0000 |
+| 42-CPQ Wood | 649 | 0.9963 |
+| 35-CAD | 237 | 0.9917 |
+| 71-HCL NOTES | 426 | 0.9914 |
+| 58-FCS | 718 | 0.9897 |
+| 66-ERP-365FO | 270 | 0.9887 |
+| 02-User Application | 240 | 0.9879 |
+| 64-Applicazioni HR | 127 | 0.9835 |
+| 70-CMS | 1,819 | 0.9815 |
+| 40-CRM Microsoft | 1,290 | 0.9653 |
+| 46-MyPortal | 1,208 | 0.9572 |
+| 01-Workplace | 1,037 | 0.9429 |
+| 30-ERP Microsoft AX 2012 | 4,806 | 0.9279 |
+| 48-BI Microsoft | 1,361 | 0.8866 |
+| 73-ERP (ACG AS/400) | 513 | 0.7581 |
+| 34-PLM | 239 | 0.6405 |
+| 72-ASM | 236 | 0.5782 |
+| 32-EBS (ERP) | 1,596 | **0.3795** |
+| **Overall** | **17,217** | **0.9440** |
 
 ### End-to-end — predicted category routing (real-world scenario)
 
-| Category | Support | Macro F1 | Abstain rate |
-|---|---:|---:|---:|
-| 67-RPA | 69 | 1.0000 | 0.0% |
-| 30-ERP Microsoft AX 2012 | 4,614 | 0.8853 | 7.8% |
-| 66-ERP-365FO | 325 | 0.5192 | 6.5% |
-| 71-HCL NOTES | 631 | 0.4675 | 6.3% |
-| 58-FCS | 759 | 0.4536 | 0.0% |
-| 02-User Application | 422 | 0.3564 | 17.1% |
-| 48-BI Microsoft | 1,363 | 0.3505 | 8.6% |
-| 73-ERP (ACG AS/400) | 757 | 0.3328 | 5.9% |
-| 01-Workplace | 1,481 | 0.2989 | 1.2% |
-| 35-CAD | 298 | 0.2928 | 0.0% |
-| 72-ASM | 384 | 0.2873 | 0.0% |
-| 64-Applicazioni HR | 145 | 0.2625 | 0.0% |
-| 42-CPQ Wood | 680 | 0.2223 | 0.0% |
-| 46-MyPortal | 1,292 | 0.2216 | 0.2% |
-| 34-PLM | 273 | 0.1901 | 0.0% |
-| 40-CRM Microsoft | 1,330 | 0.1810 | 0.2% |
-| 32-EBS (ERP) | 1,666 | **0.0698** | 0.0% |
-| **Overall** | **17,217** | **0.7717** | **4.1%** |
+| Category | Support | Macro F1 |
+|---|---:|---:|
+| 67-RPA | 69 | 1.0000 |
+| 30-ERP Microsoft AX 2012 | 4,614 | 0.7832 |
+| 58-FCS | 759 | 0.4536 |
+| 71-HCL NOTES | 631 | 0.4573 |
+| 66-ERP-365FO | 325 | 0.3482 |
+| 48-BI Microsoft | 1,363 | 0.3374 |
+| 73-ERP (ACG AS/400) | 757 | 0.3226 |
+| 01-Workplace | 1,481 | 0.2966 |
+| 02-User Application | 422 | 0.2935 |
+| 35-CAD | 298 | 0.2928 |
+| 72-ASM | 384 | 0.2873 |
+| 64-Applicazioni HR | 145 | 0.2625 |
+| 46-MyPortal | 1,292 | 0.2239 |
+| 42-CPQ Wood | 680 | 0.2223 |
+| 34-PLM | 273 | 0.1901 |
+| 40-CRM Microsoft | 1,330 | 0.1805 |
+| 32-EBS (ERP) | 1,666 | **0.0698** |
+| **Overall** | **17,217** | **0.7416** |
 
 ---
 
@@ -573,17 +573,15 @@ In production: tickets routed to a skipped category always return `"unspecified 
 
 | Metric | Old models | New models | Δ |
 |---|---:|---:|---:|
-| True-routed accuracy | 90.71% | **95.88%** | **+5.17 pp** |
-| True-routed Macro F1 | 0.8925 | **0.9463** | **+0.054** |
-| E2E accuracy | 82.05% | **86.01%** | **+3.96 pp** |
-| E2E Macro F1 | 0.7337 | **0.7717** | **+0.038** |
-| Abstain rate (true-routed) | 22.1% | **3.2%** | **−18.9 pp** |
-| Abstain rate (E2E) | 25.8% | **4.1%** | **−21.7 pp** |
+| True-routed accuracy | 90.71% | **95.05%** | **+4.34 pp** |
+| True-routed Macro F1 | 0.8925 | **0.9440** | **+0.052** |
+| E2E accuracy | 82.05% | **84.61%** | **+2.56 pp** |
+| E2E Macro F1 | 0.7337 | **0.7416** | **+0.008** |
 
-The dramatic drop in abstain rate is the most impactful change: LinearSVC via
-CalibratedClassifierCV produces much better-calibrated confidence scores than the old
-LogisticRegression + FeaturePipeline combination, so the model no longer excessively
-abstains on confident predictions.
+The gains come from the noise filter (removing catch-all labels), dedicated per-field
+TF-IDF vectorizers, and LinearSVC's stronger margin-based boundary on high-dimensional
+sparse text. CalibratedClassifierCV adds well-spread confidence scores as a by-product,
+useful for downstream inspection without imposing an accuracy-distorting threshold.
 
 ---
 
@@ -643,7 +641,7 @@ The matrices are reproduced at the bottom of each category's training block.
   no clear lexical discriminator. "Sales" almost entirely fails (F1=0.08, 15 samples).
 
 ### The E2E gap
-The true-routed vs E2E gap (0.9463 → 0.7717 macro F1) is driven entirely by category routing
+The true-routed vs E2E gap (0.9440 → 0.7416 macro F1) is driven entirely by category routing
 errors, not subcategory model weakness. The worst E2E performers are categories that the
 category model sometimes misroutes:
 - **32-EBS** (true=0.38 → E2E=0.07): already weak true-routed, amplified by routing confusion

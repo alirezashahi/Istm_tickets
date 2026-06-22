@@ -32,8 +32,6 @@ from clean import clean_text, load_and_clean
 from scipy.sparse import hstack
 
 from config import (
-    ABSTAIN_CONFIDENCE,
-    ABSTAIN_LABEL,
     CATEGORY_MODEL_CALIBRATED_PATH,
     CATEGORY_MODEL_PATH,
     CATEGORY_TRANSFORMERS_PATH,
@@ -152,7 +150,6 @@ def evaluate_subcategory(
     per_cat_rows: list[dict] = []
     all_y_true: list[str] = []
     all_y_pred: list[str] = []
-    abstain_total = 0
 
     for cat in trained_cats:
         model_path = SUBCAT_MODEL_DIR / f"{_safe_name(cat)}.joblib"
@@ -178,30 +175,11 @@ def evaluate_subcategory(
 
         X = _build_svc_X(sub, art["transformers"])
         proba = calibrated.predict_proba(X)
-        max_proba = proba.max(axis=1)
-        y_pred_raw = np.array(classes)[proba.argmax(axis=1)]
+        y_pred = np.array(classes)[proba.argmax(axis=1)]
 
-        # Apply abstention
-        y_pred = np.where(max_proba >= ABSTAIN_CONFIDENCE, y_pred_raw, ABSTAIN_LABEL)
-        n_abstain = (y_pred == ABSTAIN_LABEL).sum()
-        abstain_rate = n_abstain / len(sub)
-        abstain_total += n_abstain
-
-        # Exclude abstained rows from F1 computation
-        mask_real = y_pred != ABSTAIN_LABEL
-        y_true_eval = sub[TARGET_SUBCAT].values[mask_real]
-        y_pred_eval = y_pred[mask_real]
-
-        if len(y_pred_eval) > 0:
-            macro_f1 = f1_score(y_true_eval, y_pred_eval, average="macro", zero_division=0)
-        else:
-            macro_f1 = float("nan")
-
+        macro_f1 = f1_score(sub[TARGET_SUBCAT].values, y_pred, average="macro", zero_division=0)
         support = len(sub)
-        log.info(
-            "  %-35s  support=%4d  macro-F1=%.4f  abstain_rate=%.3f",
-            cat, support, macro_f1, abstain_rate,
-        )
+        log.info("  %-35s  support=%4d  macro-F1=%.4f", cat, support, macro_f1)
 
         all_y_true.extend(sub[TARGET_SUBCAT].values)
         all_y_pred.extend(y_pred)
@@ -210,27 +188,17 @@ def evaluate_subcategory(
             "category": cat,
             "support": support,
             "macro_f1": round(macro_f1, 4),
-            "abstain_rate": round(abstain_rate, 4),
-            "n_abstained": int(n_abstain),
         })
 
     # Per-category table
     per_cat_df = pd.DataFrame(per_cat_rows).sort_values("macro_f1", ascending=False)
     log.info("\nPer-category summary:\n%s", per_cat_df.to_string(index=False))
 
-    # Overall (excluding abstained rows)
-    mask_real = np.array(all_y_pred) != ABSTAIN_LABEL
-    y_true_real = np.array(all_y_true)[mask_real]
-    y_pred_real = np.array(all_y_pred)[mask_real]
-
-    overall = _metrics(y_true_real, y_pred_real, f"Subcategory ({mode}, non-abstained)")
-    overall_abstain_rate = abstain_total / max(len(all_y_true), 1)
-    log.info("  Overall abstain rate: %.4f", overall_abstain_rate)
+    overall = _metrics(np.array(all_y_true), np.array(all_y_pred), f"Subcategory ({mode})")
 
     return {
         "metrics": overall,
         "per_category": per_cat_df,
-        "abstain_rate": overall_abstain_rate,
     }
 
 

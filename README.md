@@ -14,8 +14,8 @@ LinearSVC with three dedicated TF-IDF vectorizers and calibrated confidence scor
 |---|---:|---:|
 | Service | **96.68%** | 0.92 |
 | Category | **87.00%** | 0.63 |
-| Subcategory — true-routed | **95.88%** | 0.95 |
-| Subcategory — end-to-end | **86.01%** | 0.77 |
+| Subcategory — true-routed | **95.05%** | 0.94 |
+| Subcategory — end-to-end | **84.61%** | 0.74 |
 
 Full analysis: [`pipeline/service_analysis.md`](pipeline/service_analysis.md) · [`pipeline/category_analysis.md`](pipeline/category_analysis.md) · [`pipeline/subcategory_analysis.md`](pipeline/subcategory_analysis.md)
 
@@ -37,7 +37,7 @@ Symptom          →  TF-IDF (35k features) ─┘
 of the service prediction.
 
 **Stage 3 — Subcategory**: one model per category (18 trained). If the predicted category
-has no model, or confidence is below 0.40, returns `"unspecified (review)"`.
+has no trained model, returns `"unspecified (review)"`.
 
 **Flat categories** (14): no model needed — subcategory equals the category name by rule.
 
@@ -58,6 +58,7 @@ pipeline/
   train_subcategory.py      Stage 3: train per-category Subcategory models
   evaluate.py               per-stage + end-to-end evaluation
   pipeline.py               inference: loads all models, runs full prediction
+  api.py                    FastAPI HTTP service (wraps pipeline.py)
   audit.py                  dump label counts for human review
   features.py               legacy feature pipeline (reference only)
   data/
@@ -80,7 +81,7 @@ pipeline/
 ## Setup
 
 ```bash
-pip install scikit-learn pandas numpy scipy joblib matplotlib seaborn
+pip install scikit-learn pandas numpy scipy joblib matplotlib seaborn fastapi uvicorn
 ```
 
 Place the raw ticket CSV export in the project root. The path is configured in
@@ -135,7 +136,6 @@ print(result.service)        # "Application"
 print(result.category)       # "34-PLM"
 print(result.subcategory)    # "Workflow"
 print(result.confidences)    # {"service": 0.99, "category": 0.91, "subcategory": 0.84}
-print(result.abstained)      # False
 print(result.is_flat)        # False
 ```
 
@@ -148,11 +148,71 @@ python pipeline.py --subject "Workflow bloccato" --symptom "Worklist non rispond
 
 ---
 
+## REST API
+
+Start the server:
+
+```bash
+cd pipeline
+uvicorn api:app --host 0.0.0.0 --port 8000
+```
+
+The pipeline loads once at startup. Interactive docs are available at
+`http://localhost:8000/docs`.
+
+**Predict endpoint** — `POST /predict`
+
+```bash
+curl -X POST http://localhost:8000/predict \
+  -H "Content-Type: application/json" \
+  -d '{
+    "incident_number": "INC0012345",
+    "subject": "Workflow bloccato",
+    "symptom": "Worklist non risponde",
+    "sender": "MARIO ROSSI"
+  }'
+```
+
+Response:
+
+```json
+{
+  "incident_number": "INC0012345",
+  "service": "Application",
+  "category": "34-PLM",
+  "subcategory": "Workflow",
+  "confidences": {
+    "service": 0.984,
+    "category": 0.091,
+    "subcategory": 0.870
+  },
+  "is_flat": false
+}
+```
+
+**Request fields**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `incident_number` | string | No | Echoed back in the response for correlation |
+| `subject` | string | No | Ticket subject line |
+| `symptom` | string | No | Ticket description / symptom body |
+| `sender` | string | No | `ProfileFullName` of the requester |
+| `category_hint` | string | No | Skip category model and route directly to this category |
+
+**Health check** — `GET /health`
+
+```bash
+curl http://localhost:8000/health
+# {"status":"ok"}
+```
+
+---
+
 ## Key configuration (`pipeline/config.py`)
 
 | Constant | Default | Effect |
 |---|---|---|
 | `MIN_SUBCAT_SUPPORT` | 50 | Subcategories with fewer rows are excluded from training |
-| `ABSTAIN_CONFIDENCE` | 0.40 | Below this confidence subcategory returns `"unspecified (review)"` |
 | `TEST_SIZE` | 0.20 | Stratified hold-out fraction used by all training scripts |
 | `RANDOM_SEED` | 42 | All randomness seeded for reproducibility |

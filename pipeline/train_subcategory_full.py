@@ -111,7 +111,7 @@ def train() -> None:
     skipped: list[str] = []
     singleton_only: list[str] = []
 
-    all_categories = sorted(df[TARGET_CATEGORY].unique())
+    all_categories = sorted(dlides .f[TARGET_CATEGORY].unique())
     log.info("Non-flat categories to train (full, no support floor): %d", len(all_categories))
 
     for cat in all_categories:

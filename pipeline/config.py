@@ -47,9 +47,6 @@ TFIDF_MAX_FEATURES = 50_000
 # Minimum (category, subcategory) pair support to include in training
 MIN_SUBCAT_SUPPORT = 50
 
-# Below this confidence the subcategory stage abstains
-ABSTAIN_CONFIDENCE = 0.40
-
 # Stratified train/test split ratio
 TEST_SIZE = 0.20
 

@@ -30,7 +30,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from clean import clean_text
 from config import (
-    ABSTAIN_CONFIDENCE,
     ABSTAIN_LABEL,
     CATEGORY_MODEL_CALIBRATED_PATH,
     CATEGORY_MODEL_PATH,
@@ -221,9 +220,6 @@ class Pipeline:
             top_conf = float(sub_proba[sub_idx])
             confidences["subcategory"] = round(top_conf, 4)
 
-            if top_conf < ABSTAIN_CONFIDENCE:
-                subcategory = ABSTAIN_LABEL
-                abstained = True
         else:
             subcategory = ABSTAIN_LABEL
             abstained = True
@@ -262,7 +258,7 @@ def main() -> None:
     print(f"Category    : {result.category}  (conf={result.confidences.get('category', '?'):.3f})")
     subcat_conf = result.confidences.get("subcategory", "N/A")
     conf_str = f"{subcat_conf:.3f}" if isinstance(subcat_conf, float) else subcat_conf
-    flag = " [FLAT]" if result.is_flat else (" [ABSTAINED]" if result.abstained else "")
+    flag = " [FLAT]" if result.is_flat else (" [NO MODEL]" if result.abstained else "")
     print(f"Subcategory : {result.subcategory}  (conf={conf_str}){flag}")
 
 

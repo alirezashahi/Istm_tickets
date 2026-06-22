@@ -105,7 +105,6 @@ result = p.predict(
 )
 print(result.service, result.category, result.subcategory)
 print(result.confidences)  # {"service": 0.99, "category": 0.87, "subcategory": 0.72}
-print(result.abstained)    # True if subcategory confidence < ABSTAIN_CONFIDENCE
 print(result.is_flat)      # True if category is flat (no model, rule-based)
 ```
 
@@ -126,7 +125,7 @@ Ticket text
             ├─ Service model          → Application | Infrastructure
             ├─ Category model (×2)    → one per service
             └─ Subcategory model (×N) → one per non-flat category
-                                         ↳ confidence < threshold → "unspecified (review)"
+                                         ↳ no model for category → "unspecified (review)"
 ```
 
 **Flat categories** (single subcategory = category name) are handled by a rule:  
@@ -156,8 +155,7 @@ If the gap is large (>5pp), sender feature is carrying disproportionate signal a
 
 | Constant | Default | Effect |
 |----------|---------|--------|
-| `MIN_SUBCAT_SUPPORT` | 50 | Subcategories with fewer train rows are excluded from the label set; at inference they fall to the abstain bucket |
-| `ABSTAIN_CONFIDENCE` | 0.40 | Below this, subcategory → "unspecified (review)". Tune on validation set. |
+| `MIN_SUBCAT_SUPPORT` | 50 | Subcategories with fewer train rows are excluded from the label set |
 | `SENDER_TOP_N` | 200 | Top-N senders get explicit encoding; rest → `__other__` |
 | `TFIDF_MAX_FEATURES_GRID` | [500,1000,2000,5000] | CV sweep; best value auto-selected per model |
 | `TEST_SIZE` | 0.20 | Stratified hold-out fraction |

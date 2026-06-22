@@ -4,7 +4,7 @@ For both model sets, reports per predicted row:
   - true subcategory, predicted subcategory, top confidence, correct/wrong
   - per-confidence-bucket accuracy (calibration)
   - per-subcategory: avg confidence when correct vs wrong
-  - abstain rate at the current ABSTAIN_CONFIDENCE threshold
+  - abstain rate at a hypothetical confidence threshold
 
 Also runs end-to-end using the TRUE category (true-category-routed) so the
 subcategory confidence is evaluated in isolation from category errors.
