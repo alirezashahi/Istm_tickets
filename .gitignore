@@ -1,0 +1,28 @@
+# ── Raw data ─────────────────────────────────────────────────────────────────
+# Ticket exports contain PII — never commit
+# label_decisions.csv is config (controls TRASHBIN/FLAT/DEFAULT labels) — keep it
+*.csv
+!pipeline/data/label_decisions.csv
+pipeline/data/raw_tickets.parquet
+
+# ── Trained model artefacts ───────────────────────────────────────────────────
+# Large binaries — regenerate with train_service/category/subcategory.py
+pipeline/models/
+
+# ── Generated analysis outputs ────────────────────────────────────────────────
+pipeline/data/confidence_analysis_*.csv
+pipeline/data/audit/
+analysis_output/
+
+# ── Python cache ─────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
